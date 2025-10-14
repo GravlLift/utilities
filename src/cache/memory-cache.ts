@@ -1,5 +1,4 @@
 import ExpiryMap from 'expiry-map';
-import { from, of } from 'rxjs';
 import { AbortSignalManager } from '../abort-signal-manager';
 import { BaseCache, Cache } from './base-cache';
 
