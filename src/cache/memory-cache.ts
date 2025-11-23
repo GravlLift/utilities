@@ -72,7 +72,6 @@ export class MemoryCache<
     const restArgs = args.slice(0, -1) as TAdditionalArgs;
 
     let abortSignalManager: AbortSignalManager;
-    let promise: Promise<TCacheItem>;
     if (!cacheEntry) {
       abortSignalManager = new AbortSignalManager();
       let fetchPromise: Promise<TCacheItem>;
@@ -89,6 +88,11 @@ export class MemoryCache<
           .then((items) => selector(items, key));
       }
 
+      fetchPromise = fetchPromise.catch((err) => {
+        this.cache.delete(transformedKey);
+        throw err;
+      });
+
       cacheEntry = {
         promise: fetchPromise,
         abortSignalManager,
@@ -100,8 +104,6 @@ export class MemoryCache<
         const firstKey = this.cache.keys().next().value;
         this.cache.delete(firstKey);
       }
-    } else {
-      promise = cacheEntry.promise;
     }
 
     cacheEntry.abortSignalManager.addSignal(abortSignal);
