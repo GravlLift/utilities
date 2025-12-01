@@ -128,10 +128,14 @@ export class MemoryCache<
       if (abortSignal.reason instanceof Error) {
         throw abortSignal.reason;
       } else {
-        throw new DOMException(`The operation was aborted.`, {
-          cause: abortSignal.reason,
-          name: 'AbortError',
-        });
+        // Use the DOMException(message, name) signature for broader TS/lib support
+        const domEx = new DOMException(
+          `The operation was aborted.`,
+          'AbortError'
+        );
+        // Attach cause when available without breaking typings
+        (domEx as { cause: unknown }).cause = abortSignal.reason;
+        throw domEx;
       }
     }
 
