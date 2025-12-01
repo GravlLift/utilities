@@ -4,14 +4,14 @@ export function abortSignalAny(signals: AbortSignal[]) {
   } else {
     const controller = new AbortController();
 
-    const abortFn = () => {
+    const abortFn = (reason?: unknown) => {
       // Cleanup
       for (const signal of signals) {
         signal.removeEventListener('abort', abortFn);
       }
       if (!controller.signal.aborted) {
         try {
-          controller.abort();
+          controller.abort(reason);
         } catch (e) {
           if (!(e instanceof Error) || e.name !== 'AbortError') {
             throw e;
@@ -22,7 +22,7 @@ export function abortSignalAny(signals: AbortSignal[]) {
 
     for (const signal of signals) {
       if (signal.aborted) {
-        abortFn();
+        abortFn(signal.reason);
         break;
       }
       signal.addEventListener('abort', abortFn);
@@ -32,7 +32,7 @@ export function abortSignalAny(signals: AbortSignal[]) {
   }
 }
 
-export function abortSignalAll(signals: AbortSignal[]) {
+export function abortSignalAll(signals: AbortSignal[]): AbortSignal {
   const controller = new AbortController();
 
   const unabortedSignals: AbortSignal[] = [];
@@ -43,12 +43,12 @@ export function abortSignalAll(signals: AbortSignal[]) {
     }
     unabortedSignals.push(signal);
 
-    const abortFn = () => {
+    const abortFn = (reason?: unknown) => {
       signal.removeEventListener('abort', abortFn);
       unabortedSignals.splice(unabortedSignals.indexOf(signal), 1);
       if (unabortedSignals.length < 1 && !controller.signal.aborted) {
         try {
-          controller.abort();
+          controller.abort(reason);
         } catch (e) {
           if (!(e instanceof Error) || e.name !== 'AbortError') {
             throw e;

@@ -50,7 +50,9 @@ export class AbortSignalManager {
       Array.from(this.signals).every((signal) => signal.aborted);
 
     if (allAborted && !this.signal.aborted) {
-      this.controller.abort();
+      this.controller.abort(
+        new AggregateError(Array.from(this.signals).map((s) => s.reason))
+      );
       this.cleanup();
     }
   }
