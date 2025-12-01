@@ -125,11 +125,14 @@ export class MemoryCache<
     const restArgs = args.slice(0, -1) as TAdditionalArgs;
 
     if (abortSignal.aborted) {
-      const error = new Error(`Operation was aborted`, {
-        cause: abortSignal.reason,
-      });
-      error.name = 'AbortError';
-      throw error;
+      if (abortSignal.reason instanceof Error) {
+        throw abortSignal.reason;
+      } else {
+        throw new DOMException(`The operation was aborted.`, {
+          cause: abortSignal.reason,
+          name: 'AbortError',
+        });
+      }
     }
 
     const keyPromisesMap = new Map<TKey, CacheEntry<TCacheItem> | undefined>();
