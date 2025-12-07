@@ -183,13 +183,13 @@ export class LayerCache<
         keyPromisesMap.set(key, promise);
         this.cache.set(this.keyTransformer(key), promise);
       }
-      this.getManyChain(additionalPromises, this.fetchers, args);
+      this.fetchChain(additionalPromises, this.fetchers, args);
     }
 
     return keyPromisesMap as Map<TKey, Promise<TCacheItem>>;
   }
 
-  private getManyChain(
+  private fetchChain(
     keyPromisesMap: Map<TKey, ResolvablePromise<TCacheItem>>,
     fetchers: Fetchers<TCacheItem, TKey, TAdditionalArgs, TResult>,
     args: [...TAdditionalArgs, AbortSignal]
@@ -207,16 +207,27 @@ export class LayerCache<
       const fetchOnFn = fetcher.fetchOneFn;
       Promise.all(
         Array.from(keyPromisesMap).map(([key, resolvablePromise]) =>
-          fetchOnFn(key, ...args).then((item) => {
-            if (item !== null) {
-              resolvablePromise.resolve(item);
-              keyPromisesMap.delete(key);
-            }
-          })
+          fetchOnFn(key, ...args)
+            .catch((err) => {
+              if (rest.length === 0) {
+                // This is the last fetcher, re-throw the error
+                throw err;
+              } else {
+                // Other fetchers may succeed, log and continue
+                console.error(err);
+                return null;
+              }
+            })
+            .then((item) => {
+              if (item !== null) {
+                resolvablePromise.resolve(item);
+                keyPromisesMap.delete(key);
+              }
+            })
         )
       ).then(() => {
         if (keyPromisesMap.size) {
-          this.getManyChain(
+          this.fetchChain(
             keyPromisesMap,
             rest as Fetchers<TCacheItem, TKey, TAdditionalArgs, TResult>,
             args
@@ -238,8 +249,20 @@ export class LayerCache<
               keyPromisesMap.delete(key);
             }
           }
+        })
+        .catch((err) => {
+          if (rest.length === 0) {
+            // This is the last fetcher, re-throw the error
+            throw err;
+          } else {
+            // Other fetchers may succeed, log and continue
+            console.error(err);
+            return null;
+          }
+        })
+        .then(() => {
           if (keyPromisesMap.size) {
-            this.getManyChain(
+            this.fetchChain(
               keyPromisesMap,
               rest as Fetchers<TCacheItem, TKey, TAdditionalArgs, TResult>,
               args
