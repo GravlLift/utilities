@@ -1,5 +1,5 @@
 import ExpiryMap from 'expiry-map';
-import { AbortSignalManager } from '../abort-signal-manager';
+import { AbortSignalManager } from '../abort/abort-signal-manager';
 import { BaseCache, Cache } from './base-cache';
 
 type CacheEntry<TCacheItem> = {

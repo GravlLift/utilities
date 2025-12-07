@@ -17,7 +17,7 @@ export class SharedFetchTracker<T> {
 
   addCaller(signal: AbortSignal): Promise<T> {
     if (signal.aborted) {
-      return Promise.reject(new Error('AbortError'));
+      return Promise.reject(new DOMException(undefined, 'AbortError'));
     }
 
     // If we already have a result, return it
@@ -44,7 +44,7 @@ export class SharedFetchTracker<T> {
     const abortHandler = () => {
       const info = this.individualPromises.get(signal);
       if (info && !this.isResolved && !this.isRejected) {
-        info.reject(new Error('AbortError'));
+        info.reject(new DOMException(undefined, 'AbortError'));
         this.individualPromises.delete(signal);
       }
     };
