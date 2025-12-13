@@ -48,7 +48,9 @@ export class NoCache<
     ...args: [...TAdditionalArgs, AbortSignal]
   ): Promise<TCacheItem> {
     const promise = super.getOne(key, ...args);
-    this.delete(key);
+    promise.finally(() => {
+      this.delete(key);
+    });
     return promise;
   }
 
@@ -57,9 +59,11 @@ export class NoCache<
     ...args: [...TAdditionalArgs, AbortSignal]
   ): Map<TKey, Promise<TCacheItem>> {
     const map = super.getMany(keys, ...args);
-    keys.forEach((k) => {
-      this.delete(k);
-    });
+    for (const [key, promise] of map) {
+      promise.finally(() => {
+        this.delete(key);
+      });
+    }
     return map;
   }
 }
