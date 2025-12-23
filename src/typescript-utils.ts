@@ -322,3 +322,5 @@ export type SpreadableClassShape<T extends abstract new (...args: any) => any> =
         : K
       : never]: InstanceType<T>[K];
   };
+
+export type Replace<T, K extends keyof T, R> = Omit<T, K> & { [P in K]: R };
