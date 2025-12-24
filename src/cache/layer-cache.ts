@@ -143,20 +143,30 @@ export class LayerCache<
     }
 
     promise = (async () => {
+      const errors: Error[] = [];
       for (const fetch of this.fetchers) {
-        let item: TCacheItem | null;
-        if ('fetchOneFn' in fetch) {
-          item = await fetch.fetchOneFn(key, ...args);
-        } else {
-          const result = await fetch.fetchManyFn([key], ...args);
-          item = fetch.resultSelector(result, key);
-        }
-        if (item !== null) {
-          return item;
+        try {
+          let item: TCacheItem | null;
+          if ('fetchOneFn' in fetch) {
+            item = await fetch.fetchOneFn(key, ...args);
+          } else {
+            const result = await fetch.fetchManyFn([key], ...args);
+            item = fetch.resultSelector(result, key);
+          }
+          if (item !== null) {
+            return item;
+          }
+        } catch (err) {
+          if (err instanceof Error) {
+            errors.push(err);
+          } else {
+            throw err;
+          }
+          continue;
         }
       }
 
-      throw new Error('No fetcher returned a valid item.');
+      throw new AggregateError(errors, 'No fetcher returned a valid item.');
     })();
     this.cache.set(this.keyTransformer(key), promise);
     return promise;
