@@ -245,12 +245,18 @@ export class LayerCache<
         }
       });
     } else {
+      const keys = Array.from(keyPromisesMap.keys());
+      if (keys.length === 0) {
+        return;
+      }
+
       const resultSelector = fetcher.resultSelector;
       if (!resultSelector) {
         throw new Error('No result selector provided for fetcher.');
       }
+
       fetcher
-        .fetchManyFn(Array.from(keyPromisesMap.keys()), ...args)
+        .fetchManyFn(keys, ...args)
         .then((results) => {
           for (const [key, promise] of keyPromisesMap) {
             const result = resultSelector(results, key);
