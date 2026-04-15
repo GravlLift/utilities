@@ -6,7 +6,7 @@ export type NullableFetcher<
   TCacheItem,
   TKey,
   TAdditionalArgs extends unknown[] = [],
-  TResult = TCacheItem
+  TResult = TCacheItem,
 > =
   | {
       fetchOneFn: (
@@ -26,7 +26,7 @@ export type NonNullableFetcher<
   TCacheItem,
   TKey,
   TAdditionalArgs extends unknown[],
-  TResult
+  TResult,
 > =
   | {
       fetchOneFn: (
@@ -46,10 +46,10 @@ export type Fetchers<
   TCacheItem,
   TKey,
   TAdditionalArgs extends unknown[],
-  TResult
+  TResult,
 > = [
   ...NullableFetcher<TCacheItem, TKey, TAdditionalArgs, TResult>[],
-  NonNullableFetcher<TCacheItem, TKey, TAdditionalArgs, TResult>
+  NonNullableFetcher<TCacheItem, TKey, TAdditionalArgs, TResult>,
 ];
 
 export class LayerCache<
@@ -57,8 +57,9 @@ export class LayerCache<
   TKey,
   TTransformedKey = string,
   TAdditionalArgs extends unknown[] = [],
-  TResult = TCacheItem
-> implements Cache<TCacheItem, TKey, TAdditionalArgs>, HasableCache<TKey>
+  TResult = TCacheItem,
+>
+  implements Cache<TCacheItem, TKey, TAdditionalArgs>, HasableCache<TKey>
 {
   protected readonly keyTransformer: (key: TKey) => TTransformedKey;
   private readonly rollingExpiration: boolean;
@@ -116,13 +117,13 @@ export class LayerCache<
       return this.getMany(
         keyOrKeys,
         ...(args.slice(0, -1) as TAdditionalArgs),
-        abortSignal
+        abortSignal,
       );
     } else {
       return this.getOne(
         keyOrKeys,
         ...(args.slice(0, -1) as TAdditionalArgs),
-        abortSignal
+        abortSignal,
       );
     }
   }
@@ -166,7 +167,11 @@ export class LayerCache<
         }
       }
 
-      throw new AggregateError(errors, 'No fetcher returned a valid item.');
+      if (errors.length === 1) {
+        throw errors[0];
+      } else {
+        throw new AggregateError(errors, 'No fetcher returned a valid item.');
+      }
     })();
     this.cache.set(this.keyTransformer(key), promise);
     return promise;
@@ -187,7 +192,7 @@ export class LayerCache<
 
     if (keysToFetch.length) {
       const additionalPromises = new Map<TKey, ResolvablePromise<TCacheItem>>(
-        keysToFetch.map((key) => [key, new ResolvablePromise()])
+        keysToFetch.map((key) => [key, new ResolvablePromise()]),
       );
       for (const [key, promise] of additionalPromises) {
         keyPromisesMap.set(key, promise);
@@ -202,7 +207,7 @@ export class LayerCache<
   private fetchChain(
     keyPromisesMap: Map<TKey, ResolvablePromise<TCacheItem>>,
     fetchers: Fetchers<TCacheItem, TKey, TAdditionalArgs, TResult>,
-    args: [...TAdditionalArgs, AbortSignal]
+    args: [...TAdditionalArgs, AbortSignal],
   ): void {
     if (keyPromisesMap.size === 0) {
       return;
@@ -233,14 +238,14 @@ export class LayerCache<
                 resolvablePromise.resolve(item);
                 keyPromisesMap.delete(key);
               }
-            })
-        )
+            }),
+        ),
       ).then(() => {
         if (keyPromisesMap.size) {
           this.fetchChain(
             keyPromisesMap,
             rest as Fetchers<TCacheItem, TKey, TAdditionalArgs, TResult>,
-            args
+            args,
           );
         }
       });
@@ -281,7 +286,7 @@ export class LayerCache<
             this.fetchChain(
               keyPromisesMap,
               rest as Fetchers<TCacheItem, TKey, TAdditionalArgs, TResult>,
-              args
+              args,
             );
           }
         });
