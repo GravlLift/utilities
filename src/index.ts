@@ -7,3 +7,4 @@ export * from './abort/abort-signal';
 export * from './abort/abort-signal-manager';
 export * from './abort/abort-error';
 export * from './shared-fetch-tracker';
+export * from './msal-node-fs-cache-plugin';
