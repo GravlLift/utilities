@@ -20,6 +20,12 @@ export type NullableFetcher<
         ...args: [...TAdditionalArgs, AbortSignal]
       ) => Promise<TResult[]>;
       resultSelector: (items: TResult[], key: TKey) => TCacheItem | null;
+    }
+  | {
+      fetchMapFn: (
+        keys: TKey[],
+        ...args: [...TAdditionalArgs, AbortSignal]
+      ) => Map<TKey, Promise<TCacheItem | null>>;
     };
 
 export type NonNullableFetcher<
@@ -117,13 +123,13 @@ export class LayerCache<
       return this.getMany(
         keyOrKeys,
         ...(args.slice(0, -1) as TAdditionalArgs),
-        abortSignal,
+        abortSignal
       );
     } else {
       return this.getOne(
         keyOrKeys,
         ...(args.slice(0, -1) as TAdditionalArgs),
-        abortSignal,
+        abortSignal
       );
     }
   }
@@ -150,9 +156,12 @@ export class LayerCache<
           let item: TCacheItem | null;
           if ('fetchOneFn' in fetch) {
             item = await fetch.fetchOneFn(key, ...args);
-          } else {
+          } else if ('fetchManyFn' in fetch) {
             const result = await fetch.fetchManyFn([key], ...args);
             item = fetch.resultSelector(result, key);
+          } else {
+            const map = fetch.fetchMapFn([key], ...args);
+            item = (await map.get(key)) ?? null;
           }
           if (item !== null) {
             return item;
@@ -192,7 +201,7 @@ export class LayerCache<
 
     if (keysToFetch.length) {
       const additionalPromises = new Map<TKey, ResolvablePromise<TCacheItem>>(
-        keysToFetch.map((key) => [key, new ResolvablePromise()]),
+        keysToFetch.map((key) => [key, new ResolvablePromise()])
       );
       for (const [key, promise] of additionalPromises) {
         keyPromisesMap.set(key, promise);
@@ -207,7 +216,7 @@ export class LayerCache<
   private fetchChain(
     keyPromisesMap: Map<TKey, ResolvablePromise<TCacheItem>>,
     fetchers: Fetchers<TCacheItem, TKey, TAdditionalArgs, TResult>,
-    args: [...TAdditionalArgs, AbortSignal],
+    args: [...TAdditionalArgs, AbortSignal]
   ): void {
     if (keyPromisesMap.size === 0) {
       return;
@@ -238,18 +247,18 @@ export class LayerCache<
                 resolvablePromise.resolve(item);
                 keyPromisesMap.delete(key);
               }
-            }),
-        ),
+            })
+        )
       ).then(() => {
         if (keyPromisesMap.size) {
           this.fetchChain(
             keyPromisesMap,
             rest as Fetchers<TCacheItem, TKey, TAdditionalArgs, TResult>,
-            args,
+            args
           );
         }
       });
-    } else {
+    } else if ('fetchManyFn' in fetcher) {
       const keys = Array.from(keyPromisesMap.keys());
       if (keys.length === 0) {
         return;
@@ -286,10 +295,49 @@ export class LayerCache<
             this.fetchChain(
               keyPromisesMap,
               rest as Fetchers<TCacheItem, TKey, TAdditionalArgs, TResult>,
-              args,
+              args
             );
           }
         });
+    } else {
+      const map = fetcher.fetchMapFn(
+        Array.from(keyPromisesMap.keys()),
+        ...args
+      );
+      const promises = [];
+      for (const [key, promise] of keyPromisesMap) {
+        const mapPromise = map.get(key);
+        if (mapPromise) {
+          promises.push(
+            mapPromise
+              .then((result) => {
+                if (result !== null) {
+                  promise.resolve(result);
+                  keyPromisesMap.delete(key);
+                }
+              })
+              .catch((err) => {
+                if (rest.length === 0) {
+                  // This is the last fetcher, re-throw the error
+                  throw err;
+                } else {
+                  // Other fetchers may succeed, log and return null
+                  console.error(err);
+                  return null;
+                }
+              })
+          );
+        }
+      }
+      Promise.allSettled(promises).then(() => {
+        if (keyPromisesMap.size) {
+          this.fetchChain(
+            keyPromisesMap,
+            rest as Fetchers<TCacheItem, TKey, TAdditionalArgs, TResult>,
+            args
+          );
+        }
+      });
     }
   }
 
